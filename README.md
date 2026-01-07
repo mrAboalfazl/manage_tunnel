@@ -20,10 +20,9 @@ The process is fully automated, reversible, and designed for production servers.
 
 Save the script and make it executable:
 
-```bash
+```
 sudo nano manage_tunnel.sh
-# Paste the full script and save
-````
+```
 
 ```
 sudo chmod +x manage_tunnel.sh
