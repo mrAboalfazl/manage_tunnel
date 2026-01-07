@@ -21,7 +21,7 @@ The process is fully automated, reversible, and designed for production servers.
 Save the script and make it executable:
 
 
-```sudo nano manage_tunnel.sh```
+sudo nano manage_tunnel.sh
 
 
 
