@@ -182,67 +182,43 @@ ensure_backhaul() {
   fi
 
   cecho "backhaul not found at $BACKHAUL_BIN."
-  cecho "Trying to install backhaul (download prebuilt). If it fails, will fallback to git clone + go build..."
+  cecho "Downloading backhaul from trusted storage..."
 
-  local url="https://github.com/Musixal/Backhaul/releases/download/${BACKHAUL_VERSION}/backhaul_linux_amd64.tar.gz"
-  local tgz="/root/backhaul_linux_amd64.tar.gz"
-  local download_ok="0"
+  local url="https://borna.storage.c2.liara.space/temp/backhaul_linux_amd64.tar.gz"
+  local tarball="/root/backhaul_linux_amd64.tar.gz"
 
-  # ---- Attempt 1: download prebuilt tar.gz (fast path) ----
+  rm -f "$tarball" >/dev/null 2>&1 || true
+
+  # ---- Download ----
   if have_cmd wget; then
-    if wget -qO "$tgz" --timeout=10 --tries=2 "$url"; then
-      download_ok="1"
-    fi
+    wget -q --timeout=20 --tries=3 -O "$tarball" "$url" \
+      || die "Failed to download backhaul archive via wget."
   elif have_cmd curl; then
-    if curl -fsSL --max-time 20 "$url" -o "$tgz"; then
-      download_ok="1"
-    fi
-  fi
-
-  if [ "$download_ok" = "1" ]; then
-    if tar -xzf "$tgz" -C /root 2>/dev/null; then
-      if [ -f "/root/backhaul" ]; then
-        chmod +x /root/backhaul || true
-        gecho "✅ Installed from release: /root/backhaul"
-        return 0
-      fi
-    fi
-    yecho "WARN: Downloaded release archive but extraction/binary check failed. Falling back to build from source..."
+    curl -fL --max-time 30 -o "$tarball" "$url" \
+      || die "Failed to download backhaul archive via curl."
   else
-    yecho "WARN: Download from GitHub Releases failed (network/CDN blocked). Falling back to build from source..."
+    die "Neither wget nor curl is available to download backhaul."
   fi
 
-  # ---- Fallback: git clone + go build (reliable path) ----
-  have_cmd git || die "git is required for fallback build but not installed."
-
-  # Install Go if missing
-  if ! have_cmd go; then
-    cecho "Go not found. Installing golang via apt..."
-    have_cmd apt-get || die "apt-get not found. Install Go manually then re-run."
-    apt-get update -y >/dev/null 2>&1 || die "apt-get update failed."
-    apt-get install -y golang >/dev/null 2>&1 || die "Failed to install golang."
+  # ---- Validate file ----
+  if ! file "$tarball" | grep -qiE 'gzip compressed|tar archive'; then
+    die "Downloaded file is not a valid tar.gz archive."
   fi
 
-  cecho "Cloning Backhaul repo..."
-  local repo_dir="/root/Backhaul-src"
-  if [ -d "$repo_dir/.git" ]; then
-    # If already exists, update it
-    (cd "$repo_dir" && git fetch --all -q && git reset --hard -q origin/master) || true
-  else
-    rm -rf "$repo_dir" >/dev/null 2>&1 || true
-    git clone -q https://github.com/Musixal/Backhaul.git "$repo_dir" || die "git clone failed."
+  # ---- Extract ----
+  cecho "Extracting backhaul archive..."
+  tar -xzf "$tarball" -C /root || die "Failed to extract backhaul archive."
+
+  # ---- Validate binary ----
+  if [ ! -f "/root/backhaul" ]; then
+    die "backhaul binary not found after extraction."
   fi
 
-  cecho "Building backhaul from source..."
-  (cd "$repo_dir" && go build -o backhaul) || die "go build failed."
-
-  [ -f "${repo_dir}/backhaul" ] || die "Build finished but binary not found."
-
-  mv -f "${repo_dir}/backhaul" /root/backhaul || die "Failed to move binary to /root/backhaul"
   chmod +x /root/backhaul || true
 
-  gecho "✅ Installed from source build: /root/backhaul"
+  gecho "✅ backhaul installed successfully at /root/backhaul"
 }
+
 
 
 ensure_ip_forwarding() {
