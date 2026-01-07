@@ -34,15 +34,15 @@ sudo chmod +x manage_tunnel.sh
 
 Run migration and generate tasks file for foreign servers:
 
-```
+
 sudo ./manage_tunnel.sh --role iran --mode migrate --out /root/backhaul-foreign-tasks.txt
-```
+
 
 If public IP detection fails, specify IRAN public IP manually:
 
-```
+
 sudo ./manage_tunnel.sh --role iran --mode migrate --iran-ip IP_PUBLIC_IRAN --out /root/backhaul-foreign-tasks.txt
-```
+
 
 ### Result on IRAN
 
@@ -55,15 +55,15 @@ sudo ./manage_tunnel.sh --role iran --mode migrate --iran-ip IP_PUBLIC_IRAN --ou
 * `WEB_PORT` is auto-allocated starting from **2525**
 * Tasks file is generated:
 
-```
+
 /root/backhaul-foreign-tasks.txt
-```
+
 
 Each line format:
 
-```
+
 FOREIGN_IP=46.29.234.87 INTER_PORT=2302 IRAN_IP=62.60.147.29 LPORT=5302 WEB_PORT=2525
-```
+
 
 ---
 
@@ -71,15 +71,15 @@ FOREIGN_IP=46.29.234.87 INTER_PORT=2302 IRAN_IP=62.60.147.29 LPORT=5302 WEB_PORT
 
 For each foreign server listed in the tasks file:
 
-```
+
 scp /root/backhaul-foreign-tasks.txt root@FOREIGN_IP:/root/backhaul-foreign-tasks.txt
-```
+
 
 Example:
 
-```
+
 scp /root/backhaul-foreign-tasks.txt root@46.29.234.87:/root/backhaul-foreign-tasks.txt
-```
+
 
 The same file can be copied to multiple KHAREJ servers safely.
 
@@ -89,9 +89,9 @@ The same file can be copied to multiple KHAREJ servers safely.
 
 Apply tasks on each KHAREJ server:
 
-```
+
 sudo ./manage_tunnel.sh --role kharej --mode foreign-apply --tasks /root/backhaul-foreign-tasks.txt
-```
+
 
 ### Result on KHAREJ
 
@@ -102,21 +102,21 @@ sudo ./manage_tunnel.sh --role kharej --mode foreign-apply --tasks /root/backhau
   * A backhaul client config is created
   * A systemd service is created with name:
 
-```
+
 backhaul_<LPORT>_<IRAN_IP_DIGITS>.service
-```
+
 
 Example:
 
-```
+
 backhaul_5302_626014729.service
-```
+
 
 * Client connects to:
 
-```
+
 IRAN_IP:INTER_PORT
-```
+
 
 ### WEB_PORT Conflict Handling
 
@@ -128,17 +128,17 @@ IRAN_IP:INTER_PORT
 
 If IP detection fails on KHAREJ:
 
-```
+
 sudo ./manage_tunnel.sh --role kharej --mode foreign-apply --foreign-ip-check off --tasks /root/backhaul-foreign-tasks.txt
-```
+
 
 ---
 
 ## 4) IRAN Server — Rollback (backhaul → udp2raw)
 
-```
+
 sudo ./manage_tunnel.sh --role iran --mode rollback
-```
+
 
 Result:
 
@@ -151,9 +151,9 @@ Result:
 
 Use when backhaul configs/services already exist:
 
-```
+
 sudo ./manage_tunnel.sh --role iran --mode remigrate
-```
+
 
 Result:
 
@@ -173,6 +173,5 @@ Result:
 
 ---
 
-```
-```
+
 ````
