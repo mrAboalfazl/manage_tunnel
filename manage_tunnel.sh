@@ -184,7 +184,8 @@ ensure_backhaul() {
   cecho "backhaul not found at $BACKHAUL_BIN."
   cecho "Downloading backhaul from trusted storage..."
 
-  local url="https://borna.storage.c2.liara.space/temp/backhaul_linux_amd64.tar.gz"
+  #local url="https://borna.storage.c2.liara.space/temp/backhaul_linux_amd64.tar.gz"
+  local url="https://github.com/Musixal/Backhaul/releases/download/v0.7.1/backhaul_linux_amd64.tar.gz"
   local tarball="/root/backhaul_linux_amd64.tar.gz"
 
   rm -f "$tarball" >/dev/null 2>&1 || true
