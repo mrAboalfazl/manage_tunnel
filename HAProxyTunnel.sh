@@ -3,9 +3,15 @@
 set +e
 set +u
 export LC_ALL=C
+
+# --- UI colors (neutral, 2-tone) ---
+COLOR_BORDER="\e[90m"   # gray for frames & titles
+COLOR_RESET="\e[0m"     # reset
+
 LOG_LINES=()
-LOG_MIN=3
-LOG_MAX=10
+LOG_MIN=6        # minimum visible rows
+LOG_MAX=16       # maximum stored rows
+
 
 ############################################
 # Banner & logging UI
@@ -13,20 +19,21 @@ LOG_MAX=10
 
 banner() {
   cat <<'EOF'
-╔═════════════════════════════════════════════════════╗
-║                                                     ║
-║   ██████╗ ███████╗██████╗ ███╗   ██╗ ██████╗        ║
-║   ██╔══██╗██╔════╝██╔══██╗████╗  ██║██╔═══██╗       ║
-║   ██████╔╝█████╗  ██████╔╝██╔██╗ ██║██║   ██║       ║
-║   ██╔══██╗██╔══╝  ██╔══██╗██║╚██╗██║██║   ██║       ║
-║   ██████╔╝███████╗██║  ██║██║ ╚████║╚██████╔╝       ║
-║   ╚═════╝ ╚══════╝╚═╝  ╚═╝╚═╝  ╚═══╝ ╚═════╝        ║
-║                                                     ║
-║                     BAZI KONIM?                     ║
-║                                                     ║
-╚═════════════════════════════════════════════════════╝
+  ┌─────────────────────────────────────────────────────────────┐
+  │                                                             │
+  │   ██████╗ ███████╗██████╗ ███╗   ██╗ ██████╗                │
+  │   ██╔══██╗██╔════╝██╔══██╗████╗  ██║██╔═══██╗               │
+  │   ██████╔╝█████╗  ██████╔╝██╔██╗ ██║██║   ██║               │
+  │   ██╔══██╗██╔══╝  ██╔══██╗██║╚██╗██║██║   ██║               │
+  │   ██████╔╝███████╗██║  ██║██║ ╚████║╚██████╔╝               │
+  │   ╚═════╝ ╚══════╝╚═╝  ╚═╝╚═╝  ╚═══╝ ╚═════╝                │
+  │                                                             │
+  │                       BAZI KONIM?                           │
+  │                                                             │
+  └─────────────────────────────────────────────────────────────┘
 EOF
 }
+
 add_log() {
   local msg="$1"
   local ts
@@ -41,31 +48,46 @@ render() {
   clear
   banner
   echo
-  local shown_count="${#LOG_LINES[@]}"
-  local height=$shown_count
-  ((height < LOG_MIN)) && height=$LOG_MIN
-  ((height > LOG_MAX)) && height=$LOG_MAX
 
-  echo "┌───────────────────────────── ACTION LOG ─────────────────────────────┐"
+  # how many log lines to show on screen
+  local shown_count="${#LOG_LINES[@]}"
+  local height="$shown_count"
+  ((height < LOG_MIN)) && height="$LOG_MIN"
+  ((height > LOG_MAX)) && height="$LOG_MAX"
+
+  # panel config
+  local indent="  "          # left padding before the log box
+  local box_width=60         # inner width of the log box (text area)
+  local border_line
+  border_line=$(printf '─%.0s' $(seq 1 "$((box_width))"))
+
+  # ACTION LOG header (right-side style box)
+  echo -e "${indent}${COLOR_BORDER}┌────────── ACTION LOG ──────────${border_line:0:$((box_width-28))}┐${COLOR_RESET}"
+
+  # compute which log index to start from
   local start_index=0
   if ((${#LOG_LINES[@]} > height)); then
     start_index=$((${#LOG_LINES[@]} - height))
   fi
 
+  # print visible log lines
   local i line
   for ((i=start_index; i<${#LOG_LINES[@]}; i++)); do
     line="${LOG_LINES[$i]}"
-    printf "│ %-68s │\n" "$line"
+    printf "%b│ %-*s │%b\n" "${indent}${COLOR_BORDER}" "$((box_width))" "$line" "${COLOR_RESET}"
   done
 
-  local missing=$((height - (${#LOG_LINES[@]} - start_index)))
+  # pad remaining rows with empty lines
+  local printed=$(( ${#LOG_LINES[@]} - start_index ))
+  local missing=$(( height - printed ))
   for ((i=0; i<missing; i++)); do
-    printf "│ %-68s │\n" ""
+    printf "%b│ %-*s │%b\n" "${indent}${COLOR_BORDER}" "$((box_width))" "" "${COLOR_RESET}"
   done
 
-  echo "└──────────────────────────────────────────────────────────────────────┘"
+  echo -e "${indent}${COLOR_BORDER}└${border_line}┘${COLOR_RESET}"
   echo
 }
+
 
 pause_enter() {
   echo
@@ -984,12 +1006,15 @@ main_menu() {
   local choice=""
   while true; do
     render
-    echo "1 > IRAN SETUP"
-    echo "2 > KHAREJ SETUP"
-    echo "3 > Services Management"
-    echo "4 > Uninstall & Clean"
-    echo "5 > Add tunnel port"
-    echo "0 > Exit"
+
+    echo -e "${COLOR_BORDER}┌───────────── MAIN MENU ─────────────┐${COLOR_RESET}"
+    echo -e "${COLOR_BORDER}│${COLOR_RESET}  1 > IRAN SETUP                     ${COLOR_BORDER}│${COLOR_RESET}"
+    echo -e "${COLOR_BORDER}│${COLOR_RESET}  2 > KHAREJ SETUP                   ${COLOR_BORDER}│${COLOR_RESET}"
+    echo -e "${COLOR_BORDER}│${COLOR_RESET}  3 > Services Management            ${COLOR_BORDER}│${COLOR_RESET}"
+    echo -e "${COLOR_BORDER}│${COLOR_RESET}  4 > Uninstall & Clean              ${COLOR_BORDER}│${COLOR_RESET}"
+    echo -e "${COLOR_BORDER}│${COLOR_RESET}  5 > Add tunnel port                ${COLOR_BORDER}│${COLOR_RESET}"
+    echo -e "${COLOR_BORDER}│${COLOR_RESET}  0 > Exit                            ${COLOR_BORDER}│${COLOR_RESET}"
+    echo -e "${COLOR_BORDER}└──────────────────────────────────────┘${COLOR_RESET}"
     echo
     read -r -e -p "Select option: " choice
     choice="$(trim "$choice")"
@@ -999,12 +1024,19 @@ main_menu() {
       2) add_log "Selected: KHAREJ SETUP"; kharej_setup ;;
       3) add_log "Selected: Services Management"; services_management ;;
       4) add_log "Selected: Uninstall & Clean"; uninstall_clean ;;
-      5) add_log "Selected: Add tunnel port"; add_tunnel_port ;;
-      0) add_log "Bye!"; render; exit 0 ;;
-      *) add_log "Invalid option: $choice" ;;
+      5) add_log "Selected: add tunnel port"; add_tunnel_port ;;
+      0)
+        add_log "Bye!"
+        render
+        exit 0
+        ;;
+      *)
+        add_log "Invalid option: $choice"
+        ;;
     esac
   done
 }
+
 
 ensure_root "$@"
 add_log "GRE + HAProxy forwarder (refactored version)."
