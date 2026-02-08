@@ -4,36 +4,33 @@ set +e
 set +u
 export LC_ALL=C
 
-# --- UI colors (neutral, 2-tone) ---
-COLOR_BORDER="\e[90m"   # gray for frames & titles
-COLOR_RESET="\e[0m"     # reset
-
 LOG_LINES=()
-LOG_MIN=6        # minimum visible rows
-LOG_MAX=16       # maximum stored rows
-
+LOG_MIN=3
+LOG_MAX=10
 
 ############################################
-# Banner & logging UI
+# Banner (BERNO / BAZI KONIM?)
 ############################################
-
 banner() {
   cat <<'EOF'
-  ┌─────────────────────────────────────────────────────────────┐
-  │                                                             │
-  │   ██████╗ ███████╗██████╗ ███╗   ██╗ ██████╗                │
-  │   ██╔══██╗██╔════╝██╔══██╗████╗  ██║██╔═══██╗               │
-  │   ██████╔╝█████╗  ██████╔╝██╔██╗ ██║██║   ██║               │
-  │   ██╔══██╗██╔══╝  ██╔══██╗██║╚██╗██║██║   ██║               │
-  │   ██████╔╝███████╗██║  ██║██║ ╚████║╚██████╔╝               │
-  │   ╚═════╝ ╚══════╝╚═╝  ╚═╝╚═╝  ╚═══╝ ╚═════╝                │
-  │                                                             │
-  │                       BAZI KONIM?                           │
-  │                                                             │
-  └─────────────────────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────────────────────────────┐
+│                                                                              │
+│   ██████╗ ███████╗██████╗ ███╗   ██╗ ██████╗                                  │
+│   ██╔══██╗██╔════╝██╔══██╗████╗  ██║██╔═══██╗                                 │
+│   ██████╔╝█████╗  ██████╔╝██╔██╗ ██║██║   ██║                                 │
+│   ██╔══██╗██╔══╝  ██╔══██╗██║╚██╗██║██║   ██║                                 │
+│   ██████╔╝███████╗██║  ██║██║ ╚████║╚██████╔╝                                 │
+│   ╚═════╝ ╚══════╝╚═╝  ╚═╝╚═╝  ╚═══╝ ╚═════╝                                  │
+│                                                                              │
+│                               BAZI KONIM?                                    │
+│                                                                              │
+└──────────────────────────────────────────────────────────────────────────────┘
 EOF
 }
 
+############################################
+# Logging helpers
+############################################
 add_log() {
   local msg="$1"
   local ts
@@ -49,45 +46,94 @@ render() {
   banner
   echo
 
-  # how many log lines to show on screen
   local shown_count="${#LOG_LINES[@]}"
-  local height="$shown_count"
-  ((height < LOG_MIN)) && height="$LOG_MIN"
-  ((height > LOG_MAX)) && height="$LOG_MAX"
+  local height=$shown_count
+  ((height < LOG_MIN)) && height=$LOG_MIN
+  ((height > LOG_MAX)) && height=$LOG_MAX
 
-  # panel config
-  local indent="  "          # left padding before the log box
-  local box_width=60         # inner width of the log box (text area)
-  local border_line
-  border_line=$(printf '─%.0s' $(seq 1 "$((box_width))"))
-
-  # ACTION LOG header (right-side style box)
-  echo -e "${indent}${COLOR_BORDER}┌────────── ACTION LOG ──────────${border_line:0:$((box_width-28))}┐${COLOR_RESET}"
-
-  # compute which log index to start from
+  echo "┌───────────────────────────── ACTION LOG ─────────────────────────────┐"
   local start_index=0
   if ((${#LOG_LINES[@]} > height)); then
     start_index=$((${#LOG_LINES[@]} - height))
   fi
 
-  # print visible log lines
   local i line
   for ((i=start_index; i<${#LOG_LINES[@]}; i++)); do
     line="${LOG_LINES[$i]}"
-    printf "%b│ %-*s │%b\n" "${indent}${COLOR_BORDER}" "$((box_width))" "$line" "${COLOR_RESET}"
+    printf "│ %-68s │\n" "$line"
   done
 
-  # pad remaining rows with empty lines
-  local printed=$(( ${#LOG_LINES[@]} - start_index ))
-  local missing=$(( height - printed ))
+  local missing=$((height - (${#LOG_LINES[@]} - start_index)))
   for ((i=0; i<missing; i++)); do
-    printf "%b│ %-*s │%b\n" "${indent}${COLOR_BORDER}" "$((box_width))" "" "${COLOR_RESET}"
+    printf "│ %-68s │\n" ""
   done
 
-  echo -e "${indent}${COLOR_BORDER}└${border_line}┘${COLOR_RESET}"
+  echo "└──────────────────────────────────────────────────────────────────────┘"
   echo
 }
 
+# فقط برای منوی اصلی: بنر + دو ستون (منو چپ / لاگ راست)
+render_main_with_log_panel() {
+  clear
+  banner
+  echo
+
+  # --- LEFT: main menu box lines ---
+  local MENU_LINES=(
+"┌──────────────────── MAIN MENU ────────────────────┐"
+"│  1 > IRAN SETUP                                   │"
+"│  2 > KHAREJ SETUP                                 │"
+"│  3 > Services Management                          │"
+"│  4 > Uninstall & Clean                            │"
+"│  5 > Add tunnel port                              │"
+"│  0 > Exit                                         │"
+"└───────────────────────────────────────────────────┘"
+  )
+
+  local menu_h=${#MENU_LINES[@]}
+
+  # --- RIGHT: action log box lines (matched height with menu) ---
+  local LOG_TOP="┌──────────────────── ACTION LOG ────────────────────┐"
+  local LOG_BOTTOM="└────────────────────────────────────────────────────┘"
+  local log_box_width=${#LOG_TOP}
+  local log_inner_width=$((log_box_width - 4))
+
+  local content_rows=$((menu_h - 2))
+  ((content_rows < 1)) && content_rows=1
+
+  local total_logs=${#LOG_LINES[@]}
+  local start_index=0
+  if (( total_logs > content_rows )); then
+    start_index=$((total_logs - content_rows))
+  fi
+
+  local -a LOG_BOX_LINES=()
+  LOG_BOX_LINES+=("$LOG_TOP")
+
+  local i idx text line
+  for ((i=0; i<content_rows; i++)); do
+    idx=$((start_index + i))
+    if (( idx < total_logs )); then
+      text="${LOG_LINES[$idx]}"
+    else
+      text=""
+    fi
+    printf -v line "│ %-*s │" "$log_inner_width" "$text"
+    LOG_BOX_LINES+=("$line")
+  done
+
+  LOG_BOX_LINES+=("$LOG_BOTTOM")
+
+  # حالا دو ستون را کنار هم چاپ می‌کنیم
+  local rows=$menu_h
+  for ((i=0; i<rows; i++)); do
+    local left="${MENU_LINES[$i]}"
+    local right="${LOG_BOX_LINES[$i]}"
+    printf "  %-51s  %s\n" "$left" "$right"
+  done
+
+  echo
+}
 
 pause_enter() {
   echo
@@ -107,9 +153,6 @@ ensure_root() {
   fi
 }
 
-############################################
-# Helpers & validators
-############################################
 trim() { sed -E 's/^[[:space:]]+//; s/[[:space:]]+$//' <<<"$1"; }
 is_int() { [[ "$1" =~ ^[0-9]+$ ]]; }
 
@@ -166,61 +209,8 @@ ask_until_valid() {
   done
 }
 
-detect_primary_ipv4() {
-  local ip=""
-  # Preferred: default route src
-  ip=$(ip -4 route get 1.1.1.1 2>/dev/null | awk '/src/ {for(i=1;i<=NF;i++) if($i=="src") {print $(i+1); exit}}')
-  if [[ -z "$ip" ]]; then
-    # Fallback: first global IPv4
-    ip=$(ip -4 addr show scope global 2>/dev/null | awk '/inet / {sub("/.*","",$2); print $2; exit}')
-  fi
-  echo "$ip"
-}
-
-ask_ipv4_with_autodetect() {
-  local label="$1"
-  local __var="$2"
-  local detected
-  detected="$(detect_primary_ipv4)"
-
-  while true; do
-    render
-    echo ">>> $label configuration"
-    if [[ -n "$detected" ]]; then
-      echo "Detected IPv4: $detected"
-      echo "[1] Use detected value"
-      echo "[2] Enter manually"
-      echo
-      read -r -p "Choice [1/2]: " c
-      c="$(trim "$c")"
-      if [[ "$c" == "1" ]]; then
-        if ! valid_ipv4 "$detected"; then
-          add_log "Detected IPv4 '$detected' is not valid IPv4 format."
-        else
-          printf -v "$__var" '%s' "$detected"
-          add_log "$label set to detected IPv4: $detected"
-          return 0
-        fi
-      elif [[ "$c" == "2" ]]; then
-        :
-      else
-        add_log "Invalid choice: $c"
-        continue
-      fi
-    fi
-
-    ask_until_valid "$label:" valid_ipv4 "$__var"
-    return 0
-  done
-}
-
-############################################
-# Ports input
-############################################
-PORT_LIST=()
-
 ask_ports() {
-  local prompt="Forward PORTS (80 | 80,2053 | 2050-2060):"
+  local prompt="ForWard PORT (80 | 80,2053 | 2050-2060):"
   local raw=""
   while true; do
     render
@@ -271,9 +261,6 @@ ask_ports() {
   done
 }
 
-############################################
-# Packages & systemd helpers
-############################################
 ensure_iproute_only() {
   add_log "Checking required package: iproute2"
   render
@@ -281,11 +268,6 @@ ensure_iproute_only() {
   if command -v ip >/dev/null 2>&1; then
     add_log "iproute2 is already installed."
     return 0
-  fi
-
-  if ! command -v apt-get >/dev/null 2>&1; then
-    add_log "apt-get not found. Please install iproute2 manually."
-    return 1
   fi
 
   add_log "Installing missing package: iproute2"
@@ -307,11 +289,6 @@ ensure_packages() {
     return 0
   fi
 
-  if ! command -v apt-get >/dev/null 2>&1; then
-    add_log "apt-get not found. Please install: ${missing[*]} manually."
-    return 1
-  fi
-
   add_log "Installing missing packages: ${missing[*]}"
   render
   apt-get update -y >/dev/null 2>&1
@@ -327,9 +304,6 @@ show_unit_status_brief() {
   systemctl --no-pager --full status "$1" 2>&1 | sed -n '1,12p'
 }
 
-############################################
-# GRE unit creation
-############################################
 make_gre_service() {
   local id="$1" local_ip="$2" remote_ip="$3" local_gre_ip="$4" key="$5"
   local unit="gre${id}.service"
@@ -366,30 +340,17 @@ EOF
   return 0
 }
 
-############################################
-# HAProxy helpers (IRAN side)
-############################################
 haproxy_unit_exists() {
   systemctl list-unit-files --no-legend 2>/dev/null | awk '{print $1}' | grep -qx 'haproxy.service'
 }
 
 haproxy_write_main_cfg() {
-  add_log "Preparing /etc/haproxy/haproxy.cfg (managed by GRE script)"
+  add_log "Rebuilding /etc/haproxy/haproxy.cfg (no include)"
   render
 
-  local cfg="/etc/haproxy/haproxy.cfg"
+  rm -f /etc/haproxy/haproxy.cfg >/dev/null 2>&1 || true
 
-  if [[ -f "$cfg" ]]; then
-    # If it is not our managed file, do not overwrite
-    if ! grep -q "^#HAPROXY-FOR-GRE" "$cfg" 2>/dev/null; then
-      add_log "Existing haproxy.cfg is not managed by this script. Refusing to overwrite."
-      return 1
-    fi
-  fi
-
-  rm -f "$cfg" >/dev/null 2>&1 || true
-
-  cat >"$cfg" <<'EOF'
+  cat >/etc/haproxy/haproxy.cfg <<'EOF'
 #HAPROXY-FOR-GRE
 global
     log /dev/log local0
@@ -406,8 +367,6 @@ defaults
     timeout server  1m
 
 EOF
-
-  return 0
 }
 
 haproxy_write_gre_cfg() {
@@ -450,7 +409,7 @@ haproxy_patch_systemd() {
   local override="${dir}/override.conf"
 
   if ! haproxy_unit_exists; then
-    add_log "ERROR: haproxy service not found"
+    add_log "ERROR: not found haproxy service"
     return 1
   fi
 
@@ -491,26 +450,23 @@ haproxy_apply_and_show() {
   echo "---------------------------------"
 }
 
-############################################
-# IRAN SETUP
-############################################
 iran_setup() {
   local ID IRANIP KHAREJIP GREBASE
-  PORT_LIST=()
+  local -a PORT_LIST=()
 
   ask_until_valid "GRE Number :" is_int ID
-  ask_ipv4_with_autodetect "IRAN IP" IRANIP
+  ask_until_valid "IRAN IP :" valid_ipv4 IRANIP
   ask_until_valid "KHAREJ IP :" valid_ipv4 KHAREJIP
-  ask_until_valid "GRE IP RANGE (example: 10.80.70.0):" valid_gre_base GREBASE
+  ask_until_valid "GRE IP RANG (Example : 10.80.70.0):" valid_gre_base GREBASE
   ask_ports
 
   local key=$((ID*100))
   local local_gre_ip peer_gre_ip
   local_gre_ip="$(ipv4_set_last_octet "$GREBASE" 1)"
   peer_gre_ip="$(ipv4_set_last_octet "$GREBASE" 2)"
-  add_log "KEY=${key} | IRAN GRE IP=${local_gre_ip} | KHAREJ GRE IP=${peer_gre_ip}"
+  add_log "KEY=${key} | IRAN=${local_gre_ip} | KHAREJ=${peer_gre_ip}"
 
-  ensure_packages || { die_soft "Package installation failed (iproute2/haproxy)."; return 0; }
+  ensure_packages || { die_soft "Package installation failed."; return 0; }
 
   make_gre_service "$ID" "$IRANIP" "$KHAREJIP" "$local_gre_ip" "$key"
   local rc=$?
@@ -520,10 +476,10 @@ iran_setup() {
   add_log "Reloading systemd..."
   systemd_reload
 
-  add_log "Enabling and starting gre${ID}.service..."
+  add_log "Starting gre${ID}..."
   enable_now "gre${ID}.service"
 
-  add_log "Writing HAProxy GRE config for GRE${ID}..."
+  add_log "Writing HAProxy configs for GRE${ID}..."
   haproxy_write_gre_cfg "$ID" "$peer_gre_ip" "${PORT_LIST[@]}"
   local hrc=$?
   if [[ $hrc -eq 2 ]]; then
@@ -534,7 +490,7 @@ iran_setup() {
     return 0
   fi
 
-  haproxy_write_main_cfg || { die_soft "Failed writing main haproxy.cfg (existing non-managed config detected)."; return 0; }
+  haproxy_write_main_cfg
 
   if command -v haproxy >/dev/null 2>&1; then
     haproxy -c -f /etc/haproxy/haproxy.cfg -f /etc/haproxy/conf.d/ >/dev/null 2>&1
@@ -547,53 +503,28 @@ iran_setup() {
   haproxy_apply_and_show || { die_soft "Failed applying HAProxy systemd override."; return 0; }
 
   render
-  echo "========== GRE TUNNEL SUMMARY (IRAN SIDE) =========="
-  echo "GRE ID              : ${ID}"
-  echo "GRE Key             : ${key}"
-  echo "GRE Base            : ${GREBASE}/30"
-  echo "Local (IRAN) IP     : ${IRANIP}"
-  echo "Remote (KHAREJ) IP  : ${KHAREJIP}"
-  echo "Local GRE IP        : ${local_gre_ip}"
-  echo "Peer GRE IP         : ${peer_gre_ip}"
-  echo "Forwarded Ports     : ${PORT_LIST[*]}"
+  echo "GRE IPs:"
+  echo "  IRAN  : ${local_gre_ip}"
+  echo "  KHAREJ: ${peer_gre_ip}"
   echo
-  echo "HAProxy:"
-  echo "  - Listens on IRAN public IP (0.0.0.0) for ports: ${PORT_LIST[*]}"
-  echo "  - Forwards to KHAREJ GRE IP: ${peer_gre_ip}:<port>"
-  echo
-  echo "Remote side (KHAREJ) MUST be configured with:"
-  echo "  - GRE ID         : ${ID}"
-  echo "  - Local real IP  : ${KHAREJIP}"
-  echo "  - Remote real IP : ${IRANIP}"
-  echo "  - GRE Base       : ${GREBASE}"
-  echo "  - Local GRE IP   : ${peer_gre_ip}"
-  echo "  - Peer GRE IP    : ${local_gre_ip}"
-  echo "  - GRE Key        : ${key}"
-  echo "  - Services should listen on ports: ${PORT_LIST[*]}"
-  echo "    bound to ${peer_gre_ip} or 0.0.0.0"
-  echo
-  echo "Status (gre${ID}.service):"
+  echo "Status:"
   show_unit_status_brief "gre${ID}.service"
-  echo
   pause_enter
 }
 
-############################################
-# KHAREJ SETUP
-############################################
 kharej_setup() {
   local ID KHAREJIP IRANIP GREBASE
 
-  ask_until_valid "GRE Number (must match IRAN):" is_int ID
-  ask_ipv4_with_autodetect "KHAREJ IP" KHAREJIP
+  ask_until_valid "GRE Number(Like IRAN PLEASE) :" is_int ID
+  ask_until_valid "KHAREJ IP :" valid_ipv4 KHAREJIP
   ask_until_valid "IRAN IP :" valid_ipv4 IRANIP
-  ask_until_valid "GRE IP RANGE (example: 10.80.70.0) - must match IRAN:" valid_gre_base GREBASE
+  ask_until_valid "GRE IP RANG (Example : 10.80.70.0) Like IRAN PLEASE:" valid_gre_base GREBASE
 
   local key=$((ID*100))
   local local_gre_ip peer_gre_ip
   local_gre_ip="$(ipv4_set_last_octet "$GREBASE" 2)"
   peer_gre_ip="$(ipv4_set_last_octet "$GREBASE" 1)"
-  add_log "KEY=${key} | KHAREJ GRE IP=${local_gre_ip} | IRAN GRE IP=${peer_gre_ip}"
+  add_log "KEY=${key} | KHAREJ=${local_gre_ip} | IRAN=${peer_gre_ip}"
 
   ensure_iproute_only || { die_soft "Package installation failed (iproute2)."; return 0; }
 
@@ -605,42 +536,18 @@ kharej_setup() {
   add_log "Reloading systemd..."
   systemd_reload
 
-  add_log "Enabling and starting gre${ID}.service..."
+  add_log "Starting gre${ID}..."
   enable_now "gre${ID}.service"
 
   render
-  echo "========== GRE TUNNEL SUMMARY (KHAREJ SIDE) =========="
-  echo "GRE ID              : ${ID}"
-  echo "GRE Key             : ${key}"
-  echo "GRE Base            : ${GREBASE}/30"
-  echo "Local (KHAREJ) IP   : ${KHAREJIP}"
-  echo "Remote (IRAN) IP    : ${IRANIP}"
-  echo "Local GRE IP        : ${local_gre_ip}"
-  echo "Peer GRE IP         : ${peer_gre_ip}"
+  echo "GRE IPs:"
+  echo "  KHAREJ: ${local_gre_ip}"
+  echo "  IRAN  : ${peer_gre_ip}"
   echo
-  echo "This side (KHAREJ) should:"
-  echo "  - Bind services on ${local_gre_ip}:<port> (or 0.0.0.0:<port>)"
-  echo "  - Expect traffic via GRE from IRAN peer: ${peer_gre_ip}"
-  echo
-  echo "Peer side (IRAN) MUST be configured with:"
-  echo "  - GRE ID         : ${ID}"
-  echo "  - Local real IP  : ${IRANIP}"
-  echo "  - Remote real IP : ${KHAREJIP}"
-  echo "  - GRE Base       : ${GREBASE}"
-  echo "  - Local GRE IP   : ${peer_gre_ip}"
-  echo "  - Peer GRE IP    : ${local_gre_ip}"
-  echo "  - GRE Key        : ${key}"
-  echo "  - HAProxy forwarding from IRAN public IP on ports that match your services"
-  echo
-  echo "Status (gre${ID}.service):"
   show_unit_status_brief "gre${ID}.service"
-  echo
   pause_enter
 }
 
-############################################
-# Services listing & management
-############################################
 get_gre_ids() {
   local ids=()
 
@@ -753,10 +660,10 @@ services_management() {
 
   while true; do
     render
-    echo "Services Management"
+    echo "Services ManageMent"
     echo
     echo "1) GRE"
-    echo "2) HAProxy"
+    echo "2) HAPROXY"
     echo "0) Back"
     echo
     read -r -e -p "Select: " sel
@@ -780,7 +687,7 @@ services_management() {
         ;;
       2)
         if ! haproxy_unit_exists; then
-          add_log "ERROR: haproxy service not found"
+          add_log "ERROR: not found haproxy service"
           render
           pause_enter
           continue
@@ -794,9 +701,6 @@ services_management() {
   done
 }
 
-############################################
-# Uninstall & Clean
-############################################
 uninstall_clean() {
   mapfile -t GRE_IDS < <(get_gre_ids)
   local -a GRE_LABELS=()
@@ -864,9 +768,6 @@ uninstall_clean() {
   pause_enter
 }
 
-############################################
-# Add tunnel ports (IRAN + HAProxy)
-############################################
 get_gre_local_ip_cidr() {
   local id="$1"
   ip -4 -o addr show dev "gre${id}" 2>/dev/null | awk '{print $4}' | head -n1
@@ -1000,22 +901,12 @@ add_tunnel_port() {
 }
 
 ############################################
-# Main menu
+# Main menu (new layout: left menu + right log)
 ############################################
 main_menu() {
   local choice=""
   while true; do
-    render
-
-    echo -e "${COLOR_BORDER}┌───────────── MAIN MENU ─────────────┐${COLOR_RESET}"
-    echo -e "${COLOR_BORDER}│${COLOR_RESET}  1 > IRAN SETUP                     ${COLOR_BORDER}│${COLOR_RESET}"
-    echo -e "${COLOR_BORDER}│${COLOR_RESET}  2 > KHAREJ SETUP                   ${COLOR_BORDER}│${COLOR_RESET}"
-    echo -e "${COLOR_BORDER}│${COLOR_RESET}  3 > Services Management            ${COLOR_BORDER}│${COLOR_RESET}"
-    echo -e "${COLOR_BORDER}│${COLOR_RESET}  4 > Uninstall & Clean              ${COLOR_BORDER}│${COLOR_RESET}"
-    echo -e "${COLOR_BORDER}│${COLOR_RESET}  5 > Add tunnel port                ${COLOR_BORDER}│${COLOR_RESET}"
-    echo -e "${COLOR_BORDER}│${COLOR_RESET}  0 > Exit                            ${COLOR_BORDER}│${COLOR_RESET}"
-    echo -e "${COLOR_BORDER}└──────────────────────────────────────┘${COLOR_RESET}"
-    echo
+    render_main_with_log_panel
     read -r -e -p "Select option: " choice
     choice="$(trim "$choice")"
 
@@ -1037,7 +928,9 @@ main_menu() {
   done
 }
 
-
+############################################
+# Entry
+############################################
 ensure_root "$@"
 add_log "GRE + HAProxy forwarder (refactored version)."
 main_menu
