@@ -4,32 +4,41 @@ set +e
 set +u
 export LC_ALL=C
 
+############################################
+# Global log + left panel state
+############################################
 LOG_LINES=()
 LOG_MIN=3
 LOG_MAX=10
+
+LEFT_TITLE="MAIN MENU"
+LEFT_CONTENT_LINES=()
 
 ############################################
 # Banner (BERNO / BAZI KONIM?)
 ############################################
 banner() {
-  cat <<'EOF'
-┌──────────────────────────────────────────────────────────────────────────────┐
-│                                                                              │
-│   ██████╗ ███████╗██████╗ ███╗   ██╗ ██████╗                                  │
-│   ██╔══██╗██╔════╝██╔══██╗████╗  ██║██╔═══██╗                                 │
-│   ██████╔╝█████╗  ██████╔╝██╔██╗ ██║██║   ██║                                 │
-│   ██╔══██╗██╔══╝  ██╔══██╗██║╚██╗██║██║   ██║                                 │
-│   ██████╔╝███████╗██║  ██║██║ ╚████║╚██████╔╝                                 │
-│   ╚═════╝ ╚══════╝╚═╝  ╚═╝╚═╝  ╚═══╝ ╚═════╝                                  │
-│                                                                              │
-│                               BAZI KONIM?                                    │
-│                                                                              │
-└──────────────────────────────────────────────────────────────────────────────┘
+  # Simple, safe color for the title (grey/white). Will degrade gracefully.
+  local C_TITLE="\033[97m"
+  local C_SUB="\033[90m"
+  local C_RESET="\033[0m"
+
+  cat <<EOF
+${C_TITLE}  ##############################################
+  #                                              #
+  #   BBBBB   EEEEE  RRRRR  N   N  OOOOO         #
+  #   B   B   E      R   R  NN  N  O   O         #
+  #   BBBBB   EEEE   RRRR   N N N  O   O         #
+  #   B   B   E      R  R   N  NN  O   O         #
+  #   BBBBB   EEEEE  R   R  N   N  OOOOO         #
+  #                                              #
+  ##############################################${C_RESET}
+${C_SUB}                  BAZI KONIM?${C_RESET}
 EOF
 }
 
 ############################################
-# Logging helpers
+# Log handling
 ############################################
 add_log() {
   local msg="$1"
@@ -41,95 +50,104 @@ add_log() {
   fi
 }
 
+############################################
+# Left panel content helpers
+############################################
+set_left_panel() {
+  LEFT_TITLE="$1"
+  shift
+  LEFT_CONTENT_LINES=("$@")
+}
+
+############################################
+# Two-column renderer: left panel + ACTION LOG
+############################################
 render() {
   clear
   banner
   echo
 
-  local shown_count="${#LOG_LINES[@]}"
-  local height=$shown_count
-  ((height < LOG_MIN)) && height=$LOG_MIN
-  ((height > LOG_MAX)) && height=$LOG_MAX
+  # Column geometry (static, safe for most terminals)
+  local LEFT_W=40
+  local RIGHT_W=70
+  local GAP="   "
+  local LOG_BODY_H=8   # number of log lines we show
 
-  echo "┌───────────────────────────── ACTION LOG ─────────────────────────────┐"
-  local start_index=0
-  if ((${#LOG_LINES[@]} > height)); then
-    start_index=$((${#LOG_LINES[@]} - height))
+  # ---------- build left panel box ----------
+  local -a left=()
+  local border_left
+  border_left="+--------------------------------------+"
+  # ensure border length == LEFT_W
+  left+=("$border_left")
+
+  # title line
+  local title=" $LEFT_TITLE"
+  if ((${#title} > LEFT_W-2)); then
+    title="${title:0:$((LEFT_W-5))}..."
+  fi
+  left+=("|$(printf '%-38s' "$title")|")
+
+  left+=("$border_left")
+
+  # body lines
+  local i
+  if ((${#LEFT_CONTENT_LINES[@]} == 0)); then
+    left+=("|                                        |")
+  else
+    for ((i=0; i<${#LEFT_CONTENT_LINES[@]}; i++)); do
+      local line="${LEFT_CONTENT_LINES[$i]}"
+      if ((${#line} > LEFT_W-3)); then
+        line="${line:0:$((LEFT_W-6))}..."
+      fi
+      left+=("| $(printf '%-36s' "$line")|")
+    done
   fi
 
-  local i line
-  for ((i=start_index; i<${#LOG_LINES[@]}; i++)); do
-    line="${LOG_LINES[$i]}"
-    printf "│ %-68s │\n" "$line"
+  # pad body to at least LOG_BODY_H lines for nice height
+  while ((${#left[@]} < LOG_BODY_H + 4)); do
+    left+=("|                                        |")
   done
 
-  local missing=$((height - (${#LOG_LINES[@]} - start_index)))
-  for ((i=0; i<missing; i++)); do
-    printf "│ %-68s │\n" ""
-  done
+  # bottom border
+  left+=("$border_left")
 
-  echo "└──────────────────────────────────────────────────────────────────────┘"
-  echo
-}
+  # ---------- build ACTION LOG box ----------
+  local -a right=()
+  local border_right="+---------------------------------------------------------------------+"
+  right+=("$border_right")
 
-# فقط برای منوی اصلی: بنر + دو ستون (منو چپ / لاگ راست)
-render_main_with_log_panel() {
-  clear
-  banner
-  echo
+  local log_title=" ACTION LOG "
+  right+=("|$(printf '%-69s' "$log_title")|")
+  right+=("$border_right")
 
-  # --- LEFT: main menu box lines ---
-  local MENU_LINES=(
-"┌──────────────────── MAIN MENU ────────────────────┐"
-"│  1 > IRAN SETUP                                   │"
-"│  2 > KHAREJ SETUP                                 │"
-"│  3 > Services Management                          │"
-"│  4 > Uninstall & Clean                            │"
-"│  5 > Add tunnel port                              │"
-"│  0 > Exit                                         │"
-"└───────────────────────────────────────────────────┘"
-  )
+  local total=${#LOG_LINES[@]}
+  local start=0
+  ((total > LOG_BODY_H)) && start=$((total - LOG_BODY_H))
 
-  local menu_h=${#MENU_LINES[@]}
-
-  # --- RIGHT: action log box lines (matched height with menu) ---
-  local LOG_TOP="┌──────────────────── ACTION LOG ────────────────────┐"
-  local LOG_BOTTOM="└────────────────────────────────────────────────────┘"
-  local log_box_width=${#LOG_TOP}
-  local log_inner_width=$((log_box_width - 4))
-
-  local content_rows=$((menu_h - 2))
-  ((content_rows < 1)) && content_rows=1
-
-  local total_logs=${#LOG_LINES[@]}
-  local start_index=0
-  if (( total_logs > content_rows )); then
-    start_index=$((total_logs - content_rows))
-  fi
-
-  local -a LOG_BOX_LINES=()
-  LOG_BOX_LINES+=("$LOG_TOP")
-
-  local i idx text line
-  for ((i=0; i<content_rows; i++)); do
-    idx=$((start_index + i))
-    if (( idx < total_logs )); then
-      text="${LOG_LINES[$idx]}"
-    else
-      text=""
+  for ((i=0; i<LOG_BODY_H; i++)); do
+    local idx=$((start + i))
+    local txt=""
+    if ((idx < total)); then
+      txt="${LOG_LINES[$idx]}"
     fi
-    printf -v line "│ %-*s │" "$log_inner_width" "$text"
-    LOG_BOX_LINES+=("$line")
+    if ((${#txt} > RIGHT_W-3)); then
+      txt="${txt:0:$((RIGHT_W-6))}..."
+    fi
+    right+=("| $(printf '%-67s' "$txt")|")
   done
 
-  LOG_BOX_LINES+=("$LOG_BOTTOM")
+  right+=("$border_right")
 
-  # حالا دو ستون را کنار هم چاپ می‌کنیم
-  local rows=$menu_h
+  # ---------- print rows side by side ----------
+  local rows=${#left[@]}
+  ((${#right[@]} > rows)) && rows=${#right[@]}
+
   for ((i=0; i<rows; i++)); do
-    local left="${MENU_LINES[$i]}"
-    local right="${LOG_BOX_LINES[$i]}"
-    printf "  %-51s  %s\n" "$left" "$right"
+    local l="${left[$i]}"
+    local r="${right[$i]}"
+    [[ -z "$l" ]] && l="$(printf '%-40s' "")"
+    [[ -z "$r" ]] && r=""
+    printf "%-40s%s%s\n" "$l" "$GAP" "$r"
   done
 
   echo
@@ -187,6 +205,9 @@ ipv4_set_last_octet() {
   echo "${a}.${b}.${c}.${last}"
 }
 
+############################################
+# Generic ask helpers (unchanged logic)
+############################################
 ask_until_valid() {
   local prompt="$1" validator="$2" __var="$3"
   local ans=""
@@ -261,6 +282,9 @@ ask_ports() {
   done
 }
 
+############################################
+# Package / system helpers (original logic)
+############################################
 ensure_iproute_only() {
   add_log "Checking required package: iproute2"
   render
@@ -450,9 +474,22 @@ haproxy_apply_and_show() {
   echo "---------------------------------"
 }
 
+############################################
+# IRAN side setup
+############################################
 iran_setup() {
   local ID IRANIP KHAREJIP GREBASE
   local -a PORT_LIST=()
+
+  set_left_panel \
+    "IRAN SETUP" \
+    "Configure GRE + HAProxy on Iran side." \
+    "You will be asked for:" \
+    "- GRE Number" \
+    "- IRAN IP" \
+    "- KHAREJ IP" \
+    "- GRE IP range" \
+    "- Forward ports"
 
   ask_until_valid "GRE Number :" is_int ID
   ask_until_valid "IRAN IP :" valid_ipv4 IRANIP
@@ -512,8 +549,18 @@ iran_setup() {
   pause_enter
 }
 
+############################################
+# KHAREJ side setup
+############################################
 kharej_setup() {
   local ID KHAREJIP IRANIP GREBASE
+
+  set_left_panel \
+    "KHAREJ SETUP" \
+    "Configure GRE on foreign server." \
+    "Must match Iran side:" \
+    "- Same GRE Number" \
+    "- Same GRE IP range"
 
   ask_until_valid "GRE Number(Like IRAN PLEASE) :" is_int ID
   ask_until_valid "KHAREJ IP :" valid_ipv4 KHAREJIP
@@ -548,6 +595,9 @@ kharej_setup() {
   pause_enter
 }
 
+############################################
+# Service discovery + menus
+############################################
 get_gre_ids() {
   local ids=()
 
@@ -573,9 +623,8 @@ menu_select_index() {
   local choice=""
 
   while true; do
+    set_left_panel "$title" "${items[@]}"
     render
-    echo "$title"
-    echo
 
     if ((${#items[@]} == 0)); then
       echo "No service found."
@@ -585,10 +634,6 @@ menu_select_index() {
       return 1
     fi
 
-    local i
-    for ((i=0; i<${#items[@]}; i++)); do
-      printf "%d) %s\n" $((i+1)) "${items[$i]}"
-    done
     echo "0) Back"
     echo
 
@@ -614,15 +659,13 @@ service_action_menu() {
   local action=""
 
   while true; do
+    set_left_panel "SERVICE: $unit" \
+      "1) Enable & Start" \
+      "2) Restart" \
+      "3) Stop & Disable" \
+      "4) Status" \
+      "0) Back"
     render
-    echo "Selected: $unit"
-    echo
-    echo "1) Enable & Start"
-    echo "2) Restart"
-    echo "3) Stop & Disable"
-    echo "4) Status"
-    echo "0) Back"
-    echo
 
     read -r -e -p "Select action: " action
     action="$(trim "$action")"
@@ -659,13 +702,12 @@ services_management() {
   local sel=""
 
   while true; do
+    set_left_panel "SERVICES" \
+      "1) GRE services" \
+      "2) HAProxy service" \
+      "0) Back"
     render
-    echo "Services ManageMent"
-    echo
-    echo "1) GRE"
-    echo "2) HAPROXY"
-    echo "0) Back"
-    echo
+
     read -r -e -p "Select: " sel
     sel="$(trim "$sel")"
 
@@ -678,13 +720,14 @@ services_management() {
           GRE_LABELS+=("GRE${id}")
         done
 
-        if menu_select_index "GRE Services" "Select GRE:" "${GRE_LABELS[@]}"; then
+        if menu_select_index "GRE SERVICES" "Select GRE:" "${GRE_LABELS[@]}"; then
           local idx="$MENU_SELECTED"
           id="${GRE_IDS[$idx]}"
           add_log "GRE selected: GRE${id}"
           service_action_menu "gre${id}.service"
         fi
         ;;
+
       2)
         if ! haproxy_unit_exists; then
           add_log "ERROR: not found haproxy service"
@@ -695,12 +738,16 @@ services_management() {
         add_log "HAProxy selected"
         service_action_menu "haproxy.service"
         ;;
+
       0) return 0 ;;
       *) add_log "Invalid selection: $sel" ;;
     esac
   done
 }
 
+############################################
+# Uninstall / clean one GRE
+############################################
 uninstall_clean() {
   mapfile -t GRE_IDS < <(get_gre_ids)
   local -a GRE_LABELS=()
@@ -709,7 +756,7 @@ uninstall_clean() {
     GRE_LABELS+=("GRE${id}")
   done
 
-  if ! menu_select_index "Uninstall & Clean" "Select GRE to uninstall:" "${GRE_LABELS[@]}"; then
+  if ! menu_select_index "UNINSTALL / CLEAN" "Select GRE to uninstall:" "${GRE_LABELS[@]}"; then
     return 0
   fi
 
@@ -717,18 +764,16 @@ uninstall_clean() {
   id="${GRE_IDS[$idx]}"
 
   while true; do
+    set_left_panel "UNINSTALL GRE${id}" \
+      "This will remove:" \
+      "- gre${id}.service" \
+      "- /etc/haproxy/conf.d/haproxy-gre${id}.cfg" \
+      "" \
+      "Type YES to confirm, NO to cancel."
     render
-    echo "Uninstall & Clean"
-    echo
-    echo "Target: GRE${id}"
-    echo "This will remove:"
-    echo "  - gre${id}.service"
-    echo "  - /etc/haproxy/conf.d/haproxy-gre${id}.cfg"
-    echo
-    echo "Type: YES (confirm)  or  NO (cancel)"
-    echo
+
     local confirm=""
-    read -r -e -p "Confirm: " confirm
+    read -r -e -p "Confirm (YES/NO): " confirm
     confirm="$(trim "$confirm")"
 
     if [[ "$confirm" == "NO" || "$confirm" == "no" ]]; then
@@ -768,6 +813,9 @@ uninstall_clean() {
   pause_enter
 }
 
+############################################
+# Add extra tunnel ports to an existing GRE
+############################################
 get_gre_local_ip_cidr() {
   local id="$1"
   ip -4 -o addr show dev "gre${id}" 2>/dev/null | awk '{print $4}' | head -n1
@@ -834,9 +882,7 @@ EOF
 }
 
 add_tunnel_port() {
-  render
   add_log "Selected: add tunnel port"
-  render
 
   mapfile -t GRE_IDS < <(get_gre_ids)
   local -a GRE_LABELS=()
@@ -845,14 +891,13 @@ add_tunnel_port() {
     GRE_LABELS+=("GRE${id}")
   done
 
-  if ! menu_select_index "Add Tunnel Port" "Select GRE:" "${GRE_LABELS[@]}"; then
+  if ! menu_select_index "ADD TUNNEL PORT" "Select GRE:" "${GRE_LABELS[@]}"; then
     return 0
   fi
 
   local idx="$MENU_SELECTED"
   id="${GRE_IDS[$idx]}"
   add_log "GRE selected: GRE${id}"
-  render
 
   local cidr
   cidr="$(get_gre_local_ip_cidr "$id")"
@@ -864,7 +909,13 @@ add_tunnel_port() {
   local peer_ip
   peer_ip="$(get_peer_ip_from_local_cidr "$cidr")"
   add_log "Detected: gre${id} local=${cidr} | peer=${peer_ip}"
-  render
+
+  set_left_panel \
+    "ADD PORTS GRE${id}" \
+    "GRE local: ${cidr}" \
+    "GRE peer : ${peer_ip}" \
+    "" \
+    "You can add extra ports now."
 
   PORT_LIST=()
   ask_ports
@@ -901,12 +952,22 @@ add_tunnel_port() {
 }
 
 ############################################
-# Main menu (new layout: left menu + right log)
+# Main menu
 ############################################
 main_menu() {
   local choice=""
+
   while true; do
-    render_main_with_log_panel
+    set_left_panel \
+      "MAIN MENU" \
+      "1 > IRAN SETUP" \
+      "2 > KHAREJ SETUP" \
+      "3 > Services Management" \
+      "4 > Uninstall & Clean" \
+      "5 > Add tunnel port" \
+      "0 > Exit"
+
+    render
     read -r -e -p "Select option: " choice
     choice="$(trim "$choice")"
 
@@ -916,14 +977,8 @@ main_menu() {
       3) add_log "Selected: Services Management"; services_management ;;
       4) add_log "Selected: Uninstall & Clean"; uninstall_clean ;;
       5) add_log "Selected: add tunnel port"; add_tunnel_port ;;
-      0)
-        add_log "Bye!"
-        render
-        exit 0
-        ;;
-      *)
-        add_log "Invalid option: $choice"
-        ;;
+      0) add_log "Bye!"; render; exit 0 ;;
+      *) add_log "Invalid option: $choice" ;;
     esac
   done
 }
