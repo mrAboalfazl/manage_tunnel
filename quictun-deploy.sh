@@ -6,7 +6,7 @@
 ###############################################################################
 set -euo pipefail
 
-readonly VERSION="1.0.0"
+readonly SCRIPT_VERSION="1.0.0"
 readonly INSTALL_DIR="/opt/quictun"
 readonly BIN_DIR="${INSTALL_DIR}/bin"
 readonly CONF_DIR="${INSTALL_DIR}/config"
@@ -120,11 +120,10 @@ detect_os() {
         exit 1
     fi
 
-    # shellcheck disable=SC1091
-    source /etc/os-release
-
-    OS_ID="${ID,,}"
-    OS_VERSION="${VERSION_ID:-unknown}"
+    # Parse os-release with grep+cut (not source) to avoid readonly variable conflicts
+    OS_ID=$(grep '^ID=' /etc/os-release | head -1 | cut -d= -f2 | tr -d '"' | tr '[:upper:]' '[:lower:]')
+    OS_VERSION=$(grep '^VERSION_ID=' /etc/os-release | head -1 | cut -d= -f2 | tr -d '"' || echo "unknown")
+    OS_VERSION="${OS_VERSION:-unknown}"
 
     case "$OS_ID" in
         debian)
@@ -764,7 +763,7 @@ apply_kernel_optimizations() {
 
     cat > "$SYSCTL_CONF" << SYSEOF
 # QuiCTun kernel optimizations
-# Applied by quictun-deploy.sh v${VERSION}
+# Applied by quictun-deploy.sh v${SCRIPT_VERSION}
 
 # IP forwarding (gateway mode)
 net.ipv4.ip_forward = 1
@@ -844,7 +843,7 @@ generate_server_config() {
     "role": "server",
     "listen_port": ${listen_port},
     "target": "${target_addr}",
-    "version": "${VERSION}"
+    "version": "${SCRIPT_VERSION}"
 }
 CONFEOF
 
@@ -878,7 +877,7 @@ generate_client_config() {
     "remote_ip": "${remote_ip}",
     "remote_port": ${remote_port},
     "local_port": ${local_port},
-    "version": "${VERSION}"
+    "version": "${SCRIPT_VERSION}"
 }
 CONFEOF
 
@@ -1772,7 +1771,7 @@ show_menu() {
     while true; do
         echo ""
         echo -e "${CYAN}${BOLD}╔══════════════════════════════════════════╗${NC}"
-        echo -e "${CYAN}${BOLD}║   QuiCTun Tunnel Manager v${VERSION}        ║${NC}"
+        echo -e "${CYAN}${BOLD}║   QuiCTun Tunnel Manager v${SCRIPT_VERSION}        ║${NC}"
         echo -e "${CYAN}${BOLD}╚══════════════════════════════════════════╝${NC}"
         echo ""
         echo "  [1] Install - Setup Upstream (Foreign/Exit Node)"
